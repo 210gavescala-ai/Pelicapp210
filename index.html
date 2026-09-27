@@ -1226,7 +1226,7 @@
       + '<div class="field"><label>Lubrificante</label><input name="lub" value="'+esc(fval('lubrificante'))+'"></div>'
       + missionExtraHtml
       + '</div><div class="grid2">'
-      + '<div class="field"><label>OMIS</label><input name="omis" placeholder="Ex.: 000/210GAV/2026" value="'+esc(fval('omis'))+'"></div>'
+      + '<div class="field"><label>OMIS</label><input name="omis" placeholder="Ex.: 260001" value="'+esc(fval('omis'))+'"></div>'
       + '<div class="field"><label>OFRAG</label><input name="ofrag" value="'+esc(fval('ofrag'))+'"></div>'
       + '</div></div>'
 
@@ -1291,12 +1291,12 @@
         omis: g('omis'), ofrag: g('ofrag')
       }, crewSlots);
       if(editingFlight){
-        flightDoc.updatedBy = S.profileId; flightDoc.updatedAt = Date.now();
+        flightDoc.updatedBy = S.profileId; flightDoc.updatedAt = Date.now(); flightDoc.needsResync = true;
         S.db.collection('flights').doc(editingFlight.id).update(flightDoc)
           .then(function(){ toast('Voo atualizado.'); S.editingFlightId = null; render(); })
           .catch(function(){ toast('Erro ao atualizar voo.'); });
       } else {
-        flightDoc.trig = profileTri(S.profileId); flightDoc.loggedBy = S.profileId; flightDoc.createdAt = Date.now();
+        flightDoc.trig = profileTri(S.profileId); flightDoc.loggedBy = S.profileId; flightDoc.createdAt = Date.now(); flightDoc.syncedToSheet = false;
         S.db.collection('flights').add(flightDoc).then(function(){ toast('Voo registrado.'); e.target.reset(); render(); })
         .catch(function(){ toast('Erro ao salvar voo.'); });
       }
@@ -1800,7 +1800,7 @@
       S.db.collection('unavailability').add({
         profileId: fd.get('profileId'), trig: profileTri(fd.get('profileId')), qt: fd.get('qt')||'',
         start: fd.get('start'), end: fd.get('end')||fd.get('start'), periodo: fd.get('periodo'),
-        reason: fd.get('reason'), notes: fd.get('notes')||'', loggedBy: S.profileId, createdAt: Date.now()
+        reason: fd.get('reason'), notes: fd.get('notes')||'', loggedBy: S.profileId, createdAt: Date.now(), syncedToSheet: false
       }).then(function(){ toast('Indisponibilidade lançada.'); e.target.reset(); })
       .catch(function(){ toast('Erro ao salvar.'); });
     });
@@ -1808,10 +1808,10 @@
 
   /* ---------------- ORDEM DE MISSÃO ---------------- */
   function nextOrderNumber(){
-    var year = new Date().getFullYear();
-    var suffix = '/210GAV/' + year;
-    var n = S.data.orders.filter(function(o){return (o.number||'').indexOf(suffix)!==-1;}).length + 1;
-    return String(n).padStart(3,'0') + suffix;
+    var yy = String(new Date().getFullYear()).slice(-2);
+    var existing = S.data.orders.filter(function(o){ return (o.number||'').indexOf(yy)===0; }).length;
+    var n = existing + 1;
+    return yy + String(n).padStart(4,'0');
   }
 
   function renderOrdem(main){
