@@ -2300,20 +2300,25 @@
       doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.text('Nenhum voo registrado com este número de OMIS.', 48, y); y += 18;
     } else {
       doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(120);
+      var tblLeft = 48, tblRight = W-48, tblW = tblRight - tblLeft;
+      var colW = { DATA:0.13, MAT:0.12, DEP:0.18, ARR:0.18, EET:0.11, COMB:0.14, LUB:0.14 };
+      var colOrder = ['DATA','MAT','DEP','ARR','EET','COMB','LUB'];
+      var colLabel = { DATA:'DATA', MAT:'MATRÍCULA', DEP:'DEP', ARR:'ARR', EET:'EET', COMB:'COMB.', LUB:'LUB.' };
+      var colCenter = {}, cx = tblLeft;
+      colOrder.forEach(function(k){ var w = colW[k]*tblW; colCenter[k] = cx + w/2; cx += w; });
       doc.setFontSize(8);
-      doc.text('DATA', 48, y); doc.text('MATRÍCULA', 108, y); doc.text('DEP', 165, y); doc.text('ARR', 245, y);
-      doc.text('EET', 325, y); doc.text('COMB.', 365, y); doc.text('LUB.', 415, y);
+      colOrder.forEach(function(k){ doc.text(colLabel[k], colCenter[k], y, {align:'center'}); });
       doc.setTextColor(0); y += 12;
       doc.setFontSize(8.5);
       flights.forEach(function(f){
         ensureSpace(14);
-        doc.text(fmtDate(f.date), 48, y);
-        doc.text(f.registration||'—', 108, y);
-        doc.text((f.origin||'—')+' '+(f.takeoff||'—'), 165, y);
-        doc.text((f.destination||'—')+' '+(f.landing||'—'), 245, y);
-        doc.text(fmtDuration(f.durationMin), 325, y);
-        doc.text(String(f.combustivel||'—'), 365, y);
-        doc.text(String(f.lubrificante||'—'), 415, y);
+        doc.text(fmtDate(f.date), colCenter.DATA, y, {align:'center'});
+        doc.text(f.registration||'—', colCenter.MAT, y, {align:'center'});
+        doc.text((f.origin||'—')+' '+(f.takeoff||'—'), colCenter.DEP, y, {align:'center'});
+        doc.text((f.destination||'—')+' '+(f.landing||'—'), colCenter.ARR, y, {align:'center'});
+        doc.text(fmtDuration(f.durationMin), colCenter.EET, y, {align:'center'});
+        doc.text(String(f.combustivel||'—'), colCenter.COMB, y, {align:'center'});
+        doc.text(String(f.lubrificante||'—'), colCenter.LUB, y, {align:'center'});
         y += 13;
       });
       y += 8;
