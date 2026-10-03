@@ -1520,24 +1520,51 @@
   /* ---------------- ESCALA DE VOO ---------------- */
   var ESCALA_ALERTA_ROWS = {
     'SC-105': [
-      {key:'pilotos', label:'PILOTOS'}, {key:'mc', label:'MC'}, {key:'oe3', label:'OE-3'},
-      {key:'osMslSl', label:'OS MSL/SL'}, {key:'os', label:'OS'}, {key:'emb', label:'EMB'}
+      {key:'pilotos', label:'PILOTOS', funcao:'PLT', slots:2},
+      {key:'mc', label:'MC', funcao:'MC', slots:2},
+      {key:'oe3', label:'OE-3', funcao:'OE-3', slots:2},
+      {key:'os', label:'OS', funcao:'OS', slots:8}
     ],
     'H-60L': [
-      {key:'pilotos', label:'PILOTOS'}, {key:'mc', label:'MC'}, {key:'oe5', label:'OE-5'},
-      {key:'hsar', label:'HSAR'}, {key:'emb', label:'EMB'}
+      {key:'pilotos', label:'PILOTOS', funcao:'PLT', slots:2},
+      {key:'mc', label:'MC', funcao:'MC', slots:2},
+      {key:'oe5', label:'OE-5', funcao:'OE-5', slots:2},
+      {key:'hsar', label:'HSAR', funcao:'HSAR', slots:4}
     ]
   };
+  function profileIndisponivelNaData_(profileId, dateIso){
+    if(!profileId || !dateIso) return false;
+    return S.data.unavail.some(function(u){
+      return u.profileId===profileId && u.start && dateIso>=u.start && dateIso<=(u.end||u.start);
+    });
+  }
+  function funcaoOptionsHtml_(funcao, modelId, selectedId, dateIso){
+    var opts = S.data.profiles.filter(function(p){ return profileHasFuncaoOnModel_(p, funcao, modelId); })
+      .sort(function(a,b){ return (a.trigrama||'').localeCompare(b.trigrama||''); });
+    return '<option value="">—</option>' + opts.map(function(p){
+      var indisp = profileIndisponivelNaData_(p.id, dateIso);
+      var style = indisp ? ' style="color:#e5484d; font-weight:600;"' : '';
+      var sel = selectedId===p.id ? ' selected' : '';
+      return '<option value="'+p.id+'"'+sel+style+'>'+esc(p.trigrama||'—')+(indisp?' (indisponível)':'')+'</option>';
+    }).join('');
+  }
   var ESCALA_TABLE_COLS = [
     {key:'dep', label:'DEP (Z)', w:'70px'}, {key:'codChamada', label:'Cod. Chamada', w:'90px'}, {key:'anv', label:'ANV', w:'70px'},
     {key:'pilotos', label:'Pilotos'}, {key:'mecanicos', label:'Mecânicos'}, {key:'oe', label:'OE'}, {key:'os', label:'OS'},
     {key:'codigoOi', label:'Código OI', w:'80px'}, {key:'tempo', label:'Tempo', w:'70px'}, {key:'area', label:'Área', w:'90px'}, {key:'obs', label:'Obs.'}
   ];
   function escalaDocId_(modelKey, dateIso){ return modelKey+'_'+dateIso; }
-  function escalaAlertaBlockHtml_(idPrefix, rows, values){
+  function escalaAlertaBlockHtml_(idPrefix, rows, values, modelId, dateIso){
+    values = values || {};
     return rows.map(function(r){
-      return '<div class="field" style="margin-bottom:8px;"><label style="font-size:11px;">'+esc(r.label)+'</label>'
-        + '<input class="escala-alerta-input" data-side="'+idPrefix+'" data-key="'+r.key+'" value="'+esc((values&&values[r.key])||'')+'" placeholder="Ex.: BUT / LIS / -"></div>';
+      var selectedArr = values[r.key] || [];
+      var selects = [];
+      for(var i=0;i<r.slots;i++){
+        selects.push('<select class="escala-alerta-select" data-side="'+idPrefix+'" data-key="'+r.key+'" data-idx="'+i+'" style="flex:1; min-width:64px;">'
+          + funcaoOptionsHtml_(r.funcao, modelId, selectedArr[i], dateIso) + '</select>');
+      }
+      return '<div class="field" style="margin-bottom:10px;"><label style="font-size:11px;">'+esc(r.label)+'</label>'
+        + '<div style="display:flex; gap:6px; flex-wrap:wrap;">'+selects.join('')+'</div></div>';
     }).join('');
   }
   function escalaTableRowHtml_(row){
@@ -1578,8 +1605,8 @@
 
       + '<div class="panel"><h3>Alerta SAR</h3>'
       + '<div class="grid2">'
-      + '<div><h4 style="font-family:var(--font-head); font-size:13px; margin:0 0 10px; color:var(--amber);">Alerta que entra</h4>'+escalaAlertaBlockHtml_('entra', alertaRows, existing.alertaEntra)+'</div>'
-      + '<div><h4 style="font-family:var(--font-head); font-size:13px; margin:0 0 10px; color:var(--amber);">Alerta que sai</h4>'+escalaAlertaBlockHtml_('sai', alertaRows, existing.alertaSai)+'</div>'
+      + '<div><h4 style="font-family:var(--font-head); font-size:13px; margin:0 0 10px; color:var(--amber);">Alerta que entra</h4>'+escalaAlertaBlockHtml_('entra', alertaRows, existing.alertaEntra, model.id, S.escalaDate)+'</div>'
+      + '<div><h4 style="font-family:var(--font-head); font-size:13px; margin:0 0 10px; color:var(--amber);">Alerta que sai</h4>'+escalaAlertaBlockHtml_('sai', alertaRows, existing.alertaSai, model.id, S.escalaDate)+'</div>'
       + '</div>'
       + '<div class="field" style="max-width:260px; margin-top:6px;"><label>ANV de alerta</label><input id="escala-anv-alerta" value="'+esc(existing.anvAlerta||'')+'" placeholder="Ex.: FAB 6551"></div>'
       + '</div>'
@@ -1627,10 +1654,15 @@
     function collectEscalaData(){
       var alertaEntra = {}, alertaSai = {};
       alertaRows.forEach(function(r){
-        var ei = main.querySelector('.escala-alerta-input[data-side="entra"][data-key="'+r.key+'"]');
-        var si = main.querySelector('.escala-alerta-input[data-side="sai"][data-key="'+r.key+'"]');
-        if(ei) alertaEntra[r.key] = ei.value.trim();
-        if(si) alertaSai[r.key] = si.value.trim();
+        var entraVals = [], saiVals = [];
+        for(var i=0;i<r.slots;i++){
+          var ei = main.querySelector('.escala-alerta-select[data-side="entra"][data-key="'+r.key+'"][data-idx="'+i+'"]');
+          var si = main.querySelector('.escala-alerta-select[data-side="sai"][data-key="'+r.key+'"][data-idx="'+i+'"]');
+          if(ei && ei.value) entraVals.push(ei.value);
+          if(si && si.value) saiVals.push(si.value);
+        }
+        alertaEntra[r.key] = entraVals;
+        alertaSai[r.key] = saiVals;
       });
       var rows = Array.from(tableWrap.querySelectorAll('.escala-row')).map(function(row){
         var obj = {};
@@ -1677,8 +1709,10 @@
       doc.text(title, x0+colW/2, yy, {align:'center'}); yy += 16;
       doc.setFontSize(9);
       alertaRows.forEach(function(r){
+        var ids = (values && values[r.key]) || [];
+        var tris = ids.map(function(pid){ var p=byId(S.data.profiles,pid); return p?(p.trigrama||'—'):'—'; }).join(' / ') || '—';
         doc.setFont('helvetica','bold'); doc.text(r.label, x0+4, yy);
-        doc.setFont('helvetica','normal'); doc.text(String((values&&values[r.key])||'—'), x0+90, yy);
+        doc.setFont('helvetica','normal'); doc.text(tris, x0+90, yy);
         yy += 15;
       });
       return yy;
