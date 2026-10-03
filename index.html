@@ -2300,18 +2300,20 @@
       doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.text('Nenhum voo registrado com este número de OMIS.', 48, y); y += 18;
     } else {
       doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(120);
-      doc.text('DATA', 48, y); doc.text('MATRÍCULA', 90, y); doc.text('DEP', 150, y); doc.text('ARR', 230, y);
-      doc.text('EET', 310, y); doc.text('COMB.', 350, y); doc.text('LUB.', 400, y);
+      doc.setFontSize(8);
+      doc.text('DATA', 48, y); doc.text('MATRÍCULA', 108, y); doc.text('DEP', 165, y); doc.text('ARR', 245, y);
+      doc.text('EET', 325, y); doc.text('COMB.', 365, y); doc.text('LUB.', 415, y);
       doc.setTextColor(0); y += 12;
+      doc.setFontSize(8.5);
       flights.forEach(function(f){
         ensureSpace(14);
         doc.text(fmtDate(f.date), 48, y);
-        doc.text(f.registration||'—', 90, y);
-        doc.text((f.origin||'—')+' '+(f.takeoff||'—'), 150, y);
-        doc.text((f.destination||'—')+' '+(f.landing||'—'), 230, y);
-        doc.text(fmtDuration(f.durationMin), 310, y);
-        doc.text(String(f.combustivel||'—'), 350, y);
-        doc.text(String(f.lubrificante||'—'), 400, y);
+        doc.text(f.registration||'—', 108, y);
+        doc.text((f.origin||'—')+' '+(f.takeoff||'—'), 165, y);
+        doc.text((f.destination||'—')+' '+(f.landing||'—'), 245, y);
+        doc.text(fmtDuration(f.durationMin), 325, y);
+        doc.text(String(f.combustivel||'—'), 365, y);
+        doc.text(String(f.lubrificante||'—'), 415, y);
         y += 13;
       });
       y += 8;
