@@ -2042,12 +2042,9 @@
         : ALL_CREW_SLOT_KEYS.map(function(k){ return f[k]; }).filter(function(v){ return !isEmptyTri_(v); }).join(', ');
       return '<div class="strip"><div class="sc sc-lg mono" style="color:var(--amber);">'+esc(f.registration)+'</div>'
         + '<div class="sc"><span class="sc-label">Data</span>'+fmtDate(f.date)+'</div>'
-        + '<div class="sc"><span class="sc-label">DEP</span>'+esc(f.takeoff||'—')+'</div>'
-        + '<div class="sc"><span class="sc-label">ARR</span>'+esc(f.landing||'—')+'</div>'
-        + '<div class="sc"><span class="sc-label">Duração</span>'+fmtDuration(f.durationMin)+'</div>'
-        + '<div class="sc"><span class="sc-label">Rota</span>'+esc(f.origin||'—')+' → '+esc(f.destination||'—')+'</div>'
-        + '<div class="sc"><span class="sc-label">PAX</span>'+esc(f.pax||'—')+'</div>'
-        + '<div class="sc"><span class="sc-label">Carga</span>'+esc(f.carga||'—')+'</div>'
+        + '<div class="sc"><span class="sc-label">DEP</span>'+esc(f.origin||'—')+' '+esc(f.takeoff||'—')+'</div>'
+        + '<div class="sc"><span class="sc-label">ARR</span>'+esc(f.destination||'—')+' '+esc(f.landing||'—')+'</div>'
+        + '<div class="sc"><span class="sc-label">EET</span>'+fmtDuration(f.durationMin)+'</div>'
         + '<div class="sc"><span class="sc-label">Combustível</span>'+esc(f.combustivel||'—')+'</div>'
         + '<div class="sc"><span class="sc-label">Lubrificante</span>'+esc(f.lubrificante||'—')+'</div>'
         + '<div class="spacer"></div>'
@@ -2057,6 +2054,14 @@
     function sumNumeric_(list, key){
       return list.reduce(function(s,f){ var n = parseFloat(String(f[key]||'').replace(',','.')); return s + (isNaN(n)?0:n); }, 0);
     }
+    var horasPorEsforco = {};
+    flights.forEach(function(f){
+      var key = f.missionType || '(sem esforço)';
+      horasPorEsforco[key] = (horasPorEsforco[key]||0) + (f.durationMin||0);
+    });
+    var esforcoRowsHtml = Object.keys(horasPorEsforco).sort(function(a,b){ return horasPorEsforco[b]-horasPorEsforco[a]; }).map(function(k){
+      return '<div class="strip" style="padding:6px 10px;"><div class="sc" style="flex:1;">'+esc(k)+'</div><div class="sc sc-lg mono" style="color:var(--teal);">'+fmtDuration(horasPorEsforco[k])+'</div></div>';
+    }).join('');
     var totalPax = sumNumeric_(flights, 'pax');
     var totalComb = sumNumeric_(flights, 'combustivel');
     var totalLub = sumNumeric_(flights, 'lubrificante');
@@ -2066,6 +2071,8 @@
         + '<div class="kpi"><div class="v">'+totalComb+'</div><div class="l">Combustível total (somado)</div></div>'
         + '<div class="kpi"><div class="v">'+totalLub+'</div><div class="l">Lubrificante total (somado)</div></div>'
         + '</div>'
+        + '<div style="margin-top:16px;"><div style="font-family:var(--font-head); font-size:12px; color:var(--text-muted); margin-bottom:6px;">Horas por esforço</div>'
+        + esforcoRowsHtml + '</div>'
       : '';
 
     var crewList = order.crew || [];
@@ -2293,17 +2300,18 @@
       doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.text('Nenhum voo registrado com este número de OMIS.', 48, y); y += 18;
     } else {
       doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(120);
-      doc.text('DATA', 48, y); doc.text('MATRÍCULA', 100, y); doc.text('DEP', 170, y); doc.text('ARR', 210, y);
-      doc.text('DURAÇÃO', 250, y); doc.text('ROTA', 310, y);
+      doc.text('DATA', 48, y); doc.text('MATRÍCULA', 90, y); doc.text('DEP', 150, y); doc.text('ARR', 230, y);
+      doc.text('EET', 310, y); doc.text('COMB.', 350, y); doc.text('LUB.', 400, y);
       doc.setTextColor(0); y += 12;
       flights.forEach(function(f){
         ensureSpace(14);
         doc.text(fmtDate(f.date), 48, y);
-        doc.text(f.registration||'—', 100, y);
-        doc.text(f.takeoff||'—', 170, y);
-        doc.text(f.landing||'—', 210, y);
-        doc.text(fmtDuration(f.durationMin), 250, y);
-        doc.text((f.origin||'—')+' -> '+(f.destination||'—'), 310, y);
+        doc.text(f.registration||'—', 90, y);
+        doc.text((f.origin||'—')+' '+(f.takeoff||'—'), 150, y);
+        doc.text((f.destination||'—')+' '+(f.landing||'—'), 230, y);
+        doc.text(fmtDuration(f.durationMin), 310, y);
+        doc.text(String(f.combustivel||'—'), 350, y);
+        doc.text(String(f.lubrificante||'—'), 400, y);
         y += 13;
       });
       y += 8;
@@ -2311,7 +2319,21 @@
       ensureSpace(14);
       doc.setFont('helvetica','bold'); doc.setFontSize(9.5);
       doc.text('PAX total: '+sumNum('pax')+'   |   Combustível total: '+sumNum('combustivel')+'   |   Lubrificante total: '+sumNum('lubrificante'), 48, y);
-      y += 16;
+      y += 18;
+      var horasPorEsforcoPdf = {};
+      flights.forEach(function(f){ var k=f.missionType||'(sem esforço)'; horasPorEsforcoPdf[k]=(horasPorEsforcoPdf[k]||0)+(f.durationMin||0); });
+      var esforcoKeysPdf = Object.keys(horasPorEsforcoPdf).sort(function(a,b){ return horasPorEsforcoPdf[b]-horasPorEsforcoPdf[a]; });
+      if(esforcoKeysPdf.length){
+        ensureSpace(14+esforcoKeysPdf.length*13);
+        doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.text('Horas por esforço:', 48, y); y += 14;
+        doc.setFont('helvetica','normal'); doc.setFontSize(9.5);
+        esforcoKeysPdf.forEach(function(k){
+          ensureSpace(13);
+          doc.text(k+': '+fmtDuration(horasPorEsforcoPdf[k]), 58, y);
+          y += 13;
+        });
+      }
+      y += 10;
     }
 
     sectionTitle('Pernoites da tripulação');
