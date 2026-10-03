@@ -175,7 +175,7 @@
     ready: false,
     profileId: localStorage.getItem('ep_profile_id') || null,
     view: 'registro',
-    data: { profiles: [], models: [], aircraft: [], flights: [], unavail: [], orders: [], effortBudgets: [], modelEfforts: [], customAirports: [], orderReports: [], soldos: [] },
+    data: { profiles: [], models: [], aircraft: [], flights: [], unavail: [], orders: [], effortBudgets: [], modelEfforts: [], customAirports: [], orderReports: [], soldos: [], escalasVoo: [] },
     fx: { modelId: null, aircraftId: null }, // registro de voo wizard
     adminTab: 'perfis',
     esforcoTab: 'alocacao',
@@ -519,6 +519,7 @@
     {id:'pausebo', label:'Pau de Sebo'},
     {id:'indisp', label:'Indisponibilidade'},
     {id:'ordem', label:'Ordem de missão'},
+    {id:'escala', label:'Escala de Voo'},
   ];
 
   function wireConfirmDelete(btn, onConfirm){
@@ -777,6 +778,7 @@
     else if(S.view==='pausebo') renderPauDeSebo(main);
     else if(S.view==='indisp') renderIndisp(main);
     else if(S.view==='ordem') renderOrdem(main);
+    else if(S.view==='escala') renderEscalaVoo(main);
     else if(S.view==='senha') renderTrocarSenha(main);
   }
 
@@ -1513,6 +1515,215 @@
     var psPrev = document.getElementById('pausebo-year-prev'), psNext = document.getElementById('pausebo-year-next');
     if(psPrev) psPrev.addEventListener('click', function(){ S.pauSeboYear -= 1; render(); });
     if(psNext) psNext.addEventListener('click', function(){ S.pauSeboYear += 1; render(); });
+  }
+
+  /* ---------------- ESCALA DE VOO ---------------- */
+  var ESCALA_ALERTA_ROWS = {
+    'SC-105': [
+      {key:'pilotos', label:'PILOTOS'}, {key:'mc', label:'MC'}, {key:'oe3', label:'OE-3'},
+      {key:'osMslSl', label:'OS MSL/SL'}, {key:'os', label:'OS'}, {key:'emb', label:'EMB'}
+    ],
+    'H-60L': [
+      {key:'pilotos', label:'PILOTOS'}, {key:'mc', label:'MC'}, {key:'oe5', label:'OE-5'},
+      {key:'hsar', label:'HSAR'}, {key:'emb', label:'EMB'}
+    ]
+  };
+  var ESCALA_TABLE_COLS = [
+    {key:'dep', label:'DEP (Z)', w:'70px'}, {key:'codChamada', label:'Cod. Chamada', w:'90px'}, {key:'anv', label:'ANV', w:'70px'},
+    {key:'pilotos', label:'Pilotos'}, {key:'mecanicos', label:'Mecânicos'}, {key:'oe', label:'OE'}, {key:'os', label:'OS'},
+    {key:'codigoOi', label:'Código OI', w:'80px'}, {key:'tempo', label:'Tempo', w:'70px'}, {key:'area', label:'Área', w:'90px'}, {key:'obs', label:'Obs.'}
+  ];
+  function escalaDocId_(modelKey, dateIso){ return modelKey+'_'+dateIso; }
+  function escalaAlertaBlockHtml_(idPrefix, rows, values){
+    return rows.map(function(r){
+      return '<div class="field" style="margin-bottom:8px;"><label style="font-size:11px;">'+esc(r.label)+'</label>'
+        + '<input class="escala-alerta-input" data-side="'+idPrefix+'" data-key="'+r.key+'" value="'+esc((values&&values[r.key])||'')+'" placeholder="Ex.: BUT / LIS / -"></div>';
+    }).join('');
+  }
+  function escalaTableRowHtml_(row){
+    row = row || {};
+    return '<div class="strip escala-row" style="padding:8px; gap:8px;">'
+      + ESCALA_TABLE_COLS.map(function(c){
+          return '<input class="escala-cell mono" data-key="'+c.key+'" value="'+esc(row[c.key]||'')+'" style="'+(c.w?'flex:0 0 '+c.w+';':'flex:1; min-width:110px;')+' font-size:12px;" placeholder="'+esc(c.label)+'">';
+        }).join('')
+      + '<button type="button" class="btn btn-danger btn-sm escala-row-del">×</button>'
+      + '</div>';
+  }
+  function renderEscalaVoo(main){
+    if(!S.data.models.length){
+      main.innerHTML = viewHead('Escala de Voo', 'Escala de Voo', 'Monte a escala diária e o alerta SAR.')
+        + '<p class="empty-note">Cadastre um modelo de aeronave em Administrador → Aeronaves primeiro.</p>';
+      return;
+    }
+    if(!S.escalaModelId || !byId(S.data.models, S.escalaModelId)) S.escalaModelId = S.data.models[0].id;
+    var model = byId(S.data.models, S.escalaModelId);
+    var modelKey = modelKeyFromName_(model.name);
+    S.escalaDate = S.escalaDate || new Date().toISOString().slice(0,10);
+    var docId = escalaDocId_(modelKey, S.escalaDate);
+    var existing = byId(S.data.escalasVoo, docId) || {};
+    var alertaRows = ESCALA_ALERTA_ROWS[modelKey] || ESCALA_ALERTA_ROWS['SC-105'];
+
+    var modelTabs = S.data.models.map(function(m){
+      return '<button class="tab'+(m.id===S.escalaModelId?' active':'')+'" data-escmodel="'+m.id+'">'+esc(m.name)+'</button>';
+    }).join('');
+
+    var tableRows = (existing.rows && existing.rows.length) ? existing.rows : [{}];
+    var tableHeaderHtml = '<div class="strip" style="padding:6px 8px; gap:8px; background:transparent; border:none; font-size:11px; color:var(--text-dim); font-family:var(--font-head);">'
+      + ESCALA_TABLE_COLS.map(function(c){ return '<div style="'+(c.w?'flex:0 0 '+c.w+';':'flex:1; min-width:110px;')+'">'+esc(c.label)+'</div>'; }).join('')
+      + '<div style="width:30px;"></div></div>';
+
+    main.innerHTML = viewHead('Escala de Voo', 'Escala de Voo', 'Monte a escala diária e o alerta SAR, por aeronave e data.')
+      + '<div class="tabs" style="margin-bottom:14px;">'+modelTabs+'</div>'
+      + '<div class="field" style="max-width:220px; margin-bottom:20px;"><label>Data</label><input type="date" id="escala-date" value="'+S.escalaDate+'"></div>'
+
+      + '<div class="panel"><h3>Alerta SAR</h3>'
+      + '<div class="grid2">'
+      + '<div><h4 style="font-family:var(--font-head); font-size:13px; margin:0 0 10px; color:var(--amber);">Alerta que entra</h4>'+escalaAlertaBlockHtml_('entra', alertaRows, existing.alertaEntra)+'</div>'
+      + '<div><h4 style="font-family:var(--font-head); font-size:13px; margin:0 0 10px; color:var(--amber);">Alerta que sai</h4>'+escalaAlertaBlockHtml_('sai', alertaRows, existing.alertaSai)+'</div>'
+      + '</div>'
+      + '<div class="field" style="max-width:260px; margin-top:6px;"><label>ANV de alerta</label><input id="escala-anv-alerta" value="'+esc(existing.anvAlerta||'')+'" placeholder="Ex.: FAB 6551"></div>'
+      + '</div>'
+
+      + '<div class="panel"><h3>Escala do dia</h3>'
+      + '<div style="overflow-x:auto;">'
+      + '<div id="escala-table-wrap" style="min-width:900px;">'+tableHeaderHtml+tableRows.map(escalaTableRowHtml_).join('')+'</div>'
+      + '</div>'
+      + '<button type="button" class="btn btn-sm" id="escala-add-row" style="margin-top:10px;">+ Adicionar linha</button>'
+      + '</div>'
+
+      + '<div class="panel"><h3>Observações</h3>'
+      + '<textarea id="escala-obs" rows="4" style="width:100%;" placeholder="Ex.: horários de briefing, retirada de faltas, etc.">'+esc(existing.observacoes||'')+'</textarea>'
+      + '</div>'
+
+      + '<div class="panel"><h3>Responsável</h3>'
+      + '<div class="grid2">'
+      + '<div class="field"><label>Nome</label><input id="escala-resp-nome" value="'+esc(existing.responsavelNome||'')+'" placeholder="Ex.: MAJ AV BARROS"></div>'
+      + '<div class="field"><label>Cargo</label><input id="escala-resp-cargo" value="'+esc(existing.responsavelCargo||'Ch. da SOP')+'"></div>'
+      + '</div></div>'
+
+      + '<button class="btn btn-amber" id="escala-save">Salvar escala</button> '
+      + '<button class="btn btn-sm" id="escala-pdf">Gerar PDF</button>';
+
+    main.querySelectorAll('[data-escmodel]').forEach(function(b){
+      b.addEventListener('click', function(){ S.escalaModelId = b.getAttribute('data-escmodel'); render(); });
+    });
+    document.getElementById('escala-date').addEventListener('change', function(e){ S.escalaDate = e.target.value; render(); });
+
+    var tableWrap = document.getElementById('escala-table-wrap');
+    function wireRowDelete(row){
+      row.querySelector('.escala-row-del').addEventListener('click', function(){
+        if(tableWrap.querySelectorAll('.escala-row').length>1) row.remove();
+        else row.querySelectorAll('.escala-cell').forEach(function(i){ i.value=''; });
+      });
+    }
+    tableWrap.querySelectorAll('.escala-row').forEach(wireRowDelete);
+    document.getElementById('escala-add-row').addEventListener('click', function(){
+      var wrap = document.createElement('div'); wrap.innerHTML = escalaTableRowHtml_({});
+      var row = wrap.firstElementChild;
+      tableWrap.appendChild(row);
+      wireRowDelete(row);
+    });
+
+    function collectEscalaData(){
+      var alertaEntra = {}, alertaSai = {};
+      alertaRows.forEach(function(r){
+        var ei = main.querySelector('.escala-alerta-input[data-side="entra"][data-key="'+r.key+'"]');
+        var si = main.querySelector('.escala-alerta-input[data-side="sai"][data-key="'+r.key+'"]');
+        if(ei) alertaEntra[r.key] = ei.value.trim();
+        if(si) alertaSai[r.key] = si.value.trim();
+      });
+      var rows = Array.from(tableWrap.querySelectorAll('.escala-row')).map(function(row){
+        var obj = {};
+        ESCALA_TABLE_COLS.forEach(function(c){ obj[c.key] = row.querySelector('[data-key="'+c.key+'"]').value.trim(); });
+        return obj;
+      }).filter(function(r){ return Object.keys(r).some(function(k){ return r[k]; }); });
+      return {
+        modelId: model.id, modelName: model.name, date: S.escalaDate,
+        alertaEntra: alertaEntra, alertaSai: alertaSai, anvAlerta: document.getElementById('escala-anv-alerta').value.trim(),
+        rows: rows, observacoes: document.getElementById('escala-obs').value,
+        responsavelNome: document.getElementById('escala-resp-nome').value.trim(), responsavelCargo: document.getElementById('escala-resp-cargo').value.trim()
+      };
+    }
+
+    document.getElementById('escala-save').addEventListener('click', function(){
+      var data = collectEscalaData();
+      S.db.doc('escalasVoo/'+docId).set(Object.assign({}, data, { updatedAt: Date.now(), updatedBy: S.profileId }))
+        .then(function(){ toast('Escala salva.'); }).catch(function(){ toast('Erro ao salvar escala.'); });
+    });
+    document.getElementById('escala-pdf').addEventListener('click', function(){
+      generateEscalaPdf(collectEscalaData(), alertaRows);
+    });
+  }
+  function generateEscalaPdf(data, alertaRows){
+    if(typeof window.jspdf === 'undefined'){ toast('Gerador de PDF indisponível no momento.'); return; }
+    var doc = new window.jspdf.jsPDF({unit:'pt', format:'a4', orientation:'landscape'});
+    var W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+    var y = 48;
+    try{
+      doc.addImage(ESCUDO_B64, 'PNG', 36, 24, 32, 42);
+      doc.addImage(BOLACHA_B64, 'PNG', W-36-38, 24, 38, 38);
+    }catch(e){}
+    doc.setFont('helvetica','bold'); doc.setFontSize(16);
+    doc.text('Escala de Voo C/'+data.modelName, W/2, y, {align:'center'});
+    doc.setFontSize(11);
+    doc.text('DATA: '+fmtDate(data.date), W/2, y+16, {align:'center'});
+    y += 44;
+    doc.setDrawColor(180); doc.line(36, y, W-36, y); y += 20;
+
+    var colW = (W-72)/2;
+    function alertaTable(title, values, x0){
+      var yy = y;
+      doc.setFont('helvetica','bold'); doc.setFontSize(10);
+      doc.text(title, x0+colW/2, yy, {align:'center'}); yy += 16;
+      doc.setFontSize(9);
+      alertaRows.forEach(function(r){
+        doc.setFont('helvetica','bold'); doc.text(r.label, x0+4, yy);
+        doc.setFont('helvetica','normal'); doc.text(String((values&&values[r.key])||'—'), x0+90, yy);
+        yy += 15;
+      });
+      return yy;
+    }
+    var yEntra = alertaTable('ALERTA QUE ENTRA', data.alertaEntra, 36);
+    var ySai = alertaTable('ALERTA QUE SAI', data.alertaSai, 36+colW+0);
+    y = Math.max(yEntra, ySai) + 6;
+    doc.setFont('helvetica','bold'); doc.setFontSize(9.5);
+    doc.text('ANV DE ALERTA: '+(data.anvAlerta||'—'), W/2, y, {align:'center'});
+    y += 22;
+    doc.setDrawColor(180); doc.line(36, y, W-36, y); y += 18;
+
+    var tblLeft = 36, tblRight = W-36, tblW = tblRight-tblLeft;
+    var wFrac = { dep:0.055, codChamada:0.08, anv:0.06, pilotos:0.13, mecanicos:0.13, oe:0.1, os:0.12, codigoOi:0.07, tempo:0.06, area:0.09, obs:0.105 };
+    var colX = {}, cx = tblLeft;
+    ESCALA_TABLE_COLS.forEach(function(c){ colX[c.key] = cx; cx += wFrac[c.key]*tblW; });
+    doc.setFont('helvetica','bold'); doc.setFontSize(8);
+    ESCALA_TABLE_COLS.forEach(function(c){ doc.text(c.label, colX[c.key]+2, y); });
+    y += 12;
+    doc.setDrawColor(200); doc.line(36, y-4, W-36, y-4);
+    doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
+    (data.rows||[]).forEach(function(row){
+      if(y > H-100){ doc.addPage('a4','landscape'); y = 48; }
+      ESCALA_TABLE_COLS.forEach(function(c){
+        var val = row[c.key]||'';
+        var lines = doc.splitTextToSize(val, (wFrac[c.key]*tblW)-6);
+        doc.text(lines[0]||'', colX[c.key]+2, y);
+      });
+      y += 14;
+    });
+
+    y += 16;
+    doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.text('OBSERVAÇÕES:', 36, y); y += 14;
+    doc.setFont('helvetica','normal'); doc.setFontSize(9.5);
+    var obsLines = doc.splitTextToSize(data.observacoes||'—', W-72);
+    obsLines.forEach(function(l){ if(y>H-60){doc.addPage('a4','landscape'); y=48;} doc.text(l, 36, y); y+=13; });
+
+    y = H - 70;
+    doc.setDrawColor(150); doc.line(W/2-90, y, W/2+90, y); y += 14;
+    doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.text(data.responsavelNome||'—', W/2, y, {align:'center'}); y += 13;
+    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.text(data.responsavelCargo||'—', W/2, y, {align:'center'});
+
+    var blob = doc.output('blob');
+    var filename = 'Escala-'+data.modelName.replace(/[^a-zA-Z0-9-]/g,'')+'-'+data.date+'.pdf';
+    var url = URL.createObjectURL(blob); window.open(url, '_blank');
   }
 
   function renderEsforco(main){
@@ -2609,7 +2820,7 @@
     var cols = [
       ['profiles','profiles'], ['aircraftModels','models'], ['aircraft','aircraft'],
       ['flights','flights'], ['unavailability','unavail'], ['missionOrders','orders'],
-      ['effortBudgets','effortBudgets'], ['modelEfforts','modelEfforts'], ['customAirports','customAirports'], ['orderReports','orderReports'], ['soldos','soldos']
+      ['effortBudgets','effortBudgets'], ['modelEfforts','modelEfforts'], ['customAirports','customAirports'], ['orderReports','orderReports'], ['soldos','soldos'], ['escalasVoo','escalasVoo']
     ];
     S._lastJson = S._lastJson || {};
     S._loadedCollections = S._loadedCollections || {};
