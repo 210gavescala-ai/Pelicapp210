@@ -84,6 +84,10 @@
   .view-desc{color:var(--text-muted); font-size:14px; margin-top:6px; max-width:560px;}
 
   .panel{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:20px; margin-bottom:22px;}
+  details.panel{padding:0;}
+  details.panel summary::-webkit-details-marker{display:none;}
+  details.panel summary::marker{content:'';}
+  details.panel[open] .toggle-chevron{transform:rotate(180deg); display:inline-block;}
   .panel h3{font-family:var(--font-head); font-size:15.5px; margin:0 0 16px; font-weight:600;}
   .grid2{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
   .grid3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px;}
@@ -1476,9 +1480,13 @@
           + '<div class="sc"><span class="sc-label">Há</span><span class="mono" style="color:'+daysColor+';">'+(days!=null?days+' dia'+(days===1?'':'s'):'—')+'</span></div>'
           + '</div>';
       }).join('');
-      return '<div class="panel"><h3>'+funcao+'</h3>'
+      return '<details class="panel" open style="padding:0;"><summary style="cursor:pointer; padding:16px 18px; list-style:none; display:flex; align-items:center; justify-content:space-between;">'
+        + '<h3 style="margin:0;">'+funcao+' <span class="mono" style="color:var(--text-dim); font-weight:400; font-size:12px;">('+entries.length+')</span></h3>'
+        + '<span class="toggle-chevron mono" style="color:var(--text-dim); font-size:13px;">▾</span>'
+        + '</summary>'
+        + '<div style="padding:0 18px 16px;">'
         + (rows || '<p class="empty-note">Nenhum voo registrado para esta função ainda.</p>')
-        + '</div>';
+        + '</div></details>';
     }).join('');
 
     main.innerHTML = viewHead('Pau de Sebo', 'Pau de Sebo — '+model.name, 'Ranking de horas voadas por tripulante, separado por função.')
