@@ -1523,14 +1523,20 @@
       {key:'pilotos', label:'PILOTOS', funcao:'PLT', slots:2},
       {key:'mc', label:'MC', funcao:'MC', slots:2},
       {key:'oe3', label:'OE-3', funcao:'OE-3', slots:2},
-      {key:'os', label:'OS', funcao:'OS', slots:8}
+      {key:'os', label:'OS', funcao:'OS', slots:8},
+      {key:'emb', label:'EMB', freeText:true}
     ],
     'H-60L': [
       {key:'pilotos', label:'PILOTOS', funcao:'PLT', slots:2},
       {key:'mc', label:'MC', funcao:'MC', slots:2},
       {key:'oe5', label:'OE-5', funcao:'OE-5', slots:2},
-      {key:'hsar', label:'HSAR', funcao:'HSAR', slots:4}
+      {key:'hsar', label:'HSAR', funcao:'HSAR', slots:4},
+      {key:'emb', label:'EMB', freeText:true}
     ]
+  };
+  var ESCALA_TABLE_CREW = {
+    'SC-105': { pilotos:{funcao:'PLT', slots:2}, mecanicos:{funcao:'MC', slots:2}, oe:{funcao:'OE-3', slots:2}, os:{funcao:'OS', slots:4} },
+    'H-60L': { pilotos:{funcao:'PLT', slots:2}, mecanicos:{funcao:'MC', slots:2}, oe:{funcao:'OE-5', slots:2}, os:{funcao:'HSAR', slots:4} }
   };
   function profileIndisponivelNaData_(profileId, dateIso){
     if(!profileId || !dateIso) return false;
@@ -1557,6 +1563,10 @@
   function escalaAlertaBlockHtml_(idPrefix, rows, values, modelId, dateIso){
     values = values || {};
     return rows.map(function(r){
+      if(r.freeText){
+        return '<div class="field" style="margin-bottom:10px;"><label style="font-size:11px;">'+esc(r.label)+'</label>'
+          + '<input class="escala-alerta-free" data-side="'+idPrefix+'" data-key="'+r.key+'" value="'+esc(values[r.key]||'')+'" placeholder="Texto livre"></div>';
+      }
       var selectedArr = values[r.key] || [];
       var selects = [];
       for(var i=0;i<r.slots;i++){
@@ -1567,13 +1577,26 @@
         + '<div style="display:flex; gap:6px; flex-wrap:wrap;">'+selects.join('')+'</div></div>';
     }).join('');
   }
-  function escalaTableRowHtml_(row){
+  function escalaTableRowHtml_(row, modelKey, dateIso){
     row = row || {};
-    return '<div class="strip escala-row" style="padding:8px; gap:8px;">'
+    var crewCfg = ESCALA_TABLE_CREW[modelKey] || ESCALA_TABLE_CREW['SC-105'];
+    return '<div class="strip escala-row" style="padding:8px; gap:8px; align-items:flex-start;">'
       + ESCALA_TABLE_COLS.map(function(c){
+          if(crewCfg[c.key]){
+            var cfg = crewCfg[c.key];
+            var selectedArr = row[c.key] || [];
+            var selects = [];
+            for(var i=0;i<cfg.slots;i++){
+              selects.push('<select class="escala-cell-select" data-key="'+c.key+'" data-idx="'+i+'" style="font-size:11px; min-width:58px;">'
+                + funcaoOptionsHtml_(cfg.funcao, S.escalaModelId, selectedArr[i], dateIso) + '</select>');
+            }
+            return '<div style="'+(c.w?'flex:0 0 '+c.w+';':'flex:1; min-width:140px;')+' display:flex; flex-direction:column; gap:3px;">'
+              + '<div style="font-size:9px; color:var(--text-dim);">'+esc(c.label)+'</div>'
+              + '<div style="display:flex; gap:3px; flex-wrap:wrap;">'+selects.join('')+'</div></div>';
+          }
           return '<input class="escala-cell mono" data-key="'+c.key+'" value="'+esc(row[c.key]||'')+'" style="'+(c.w?'flex:0 0 '+c.w+';':'flex:1; min-width:110px;')+' font-size:12px;" placeholder="'+esc(c.label)+'">';
         }).join('')
-      + '<button type="button" class="btn btn-danger btn-sm escala-row-del">×</button>'
+      + '<button type="button" class="btn btn-danger btn-sm escala-row-del" style="margin-top:14px;">×</button>'
       + '</div>';
   }
   function renderEscalaVoo(main){
@@ -1613,7 +1636,7 @@
 
       + '<div class="panel"><h3>Escala do dia</h3>'
       + '<div style="overflow-x:auto;">'
-      + '<div id="escala-table-wrap" style="min-width:900px;">'+tableHeaderHtml+tableRows.map(escalaTableRowHtml_).join('')+'</div>'
+      + '<div id="escala-table-wrap" style="min-width:1100px;">'+tableHeaderHtml+tableRows.map(function(r){ return escalaTableRowHtml_(r, modelKey, S.escalaDate); }).join('')+'</div>'
       + '</div>'
       + '<button type="button" class="btn btn-sm" id="escala-add-row" style="margin-top:10px;">+ Adicionar linha</button>'
       + '</div>'
@@ -1645,7 +1668,7 @@
     }
     tableWrap.querySelectorAll('.escala-row').forEach(wireRowDelete);
     document.getElementById('escala-add-row').addEventListener('click', function(){
-      var wrap = document.createElement('div'); wrap.innerHTML = escalaTableRowHtml_({});
+      var wrap = document.createElement('div'); wrap.innerHTML = escalaTableRowHtml_({}, modelKey, S.escalaDate);
       var row = wrap.firstElementChild;
       tableWrap.appendChild(row);
       wireRowDelete(row);
@@ -1654,6 +1677,13 @@
     function collectEscalaData(){
       var alertaEntra = {}, alertaSai = {};
       alertaRows.forEach(function(r){
+        if(r.freeText){
+          var efi = main.querySelector('.escala-alerta-free[data-side="entra"][data-key="'+r.key+'"]');
+          var sfi = main.querySelector('.escala-alerta-free[data-side="sai"][data-key="'+r.key+'"]');
+          alertaEntra[r.key] = efi ? efi.value.trim() : '';
+          alertaSai[r.key] = sfi ? sfi.value.trim() : '';
+          return;
+        }
         var entraVals = [], saiVals = [];
         for(var i=0;i<r.slots;i++){
           var ei = main.querySelector('.escala-alerta-select[data-side="entra"][data-key="'+r.key+'"][data-idx="'+i+'"]');
@@ -1664,11 +1694,19 @@
         alertaEntra[r.key] = entraVals;
         alertaSai[r.key] = saiVals;
       });
+      var tableCrewCfg = ESCALA_TABLE_CREW[modelKey] || ESCALA_TABLE_CREW['SC-105'];
       var rows = Array.from(tableWrap.querySelectorAll('.escala-row')).map(function(row){
         var obj = {};
-        ESCALA_TABLE_COLS.forEach(function(c){ obj[c.key] = row.querySelector('[data-key="'+c.key+'"]').value.trim(); });
+        ESCALA_TABLE_COLS.forEach(function(c){
+          if(tableCrewCfg[c.key]){
+            var vals = Array.from(row.querySelectorAll('.escala-cell-select[data-key="'+c.key+'"]')).map(function(s){return s.value;}).filter(Boolean);
+            obj[c.key] = vals;
+          } else {
+            obj[c.key] = row.querySelector('.escala-cell[data-key="'+c.key+'"]').value.trim();
+          }
+        });
         return obj;
-      }).filter(function(r){ return Object.keys(r).some(function(k){ return r[k]; }); });
+      }).filter(function(r){ return Object.keys(r).some(function(k){ var v=r[k]; return Array.isArray(v) ? v.length : v; }); });
       return {
         modelId: model.id, modelName: model.name, date: S.escalaDate,
         alertaEntra: alertaEntra, alertaSai: alertaSai, anvAlerta: document.getElementById('escala-anv-alerta').value.trim(),
@@ -1709,10 +1747,15 @@
       doc.text(title, x0+colW/2, yy, {align:'center'}); yy += 16;
       doc.setFontSize(9);
       alertaRows.forEach(function(r){
-        var ids = (values && values[r.key]) || [];
-        var tris = ids.map(function(pid){ var p=byId(S.data.profiles,pid); return p?(p.trigrama||'—'):'—'; }).join(' / ') || '—';
+        var display;
+        if(r.freeText){
+          display = (values && values[r.key]) || '—';
+        } else {
+          var ids = (values && values[r.key]) || [];
+          display = ids.map(function(pid){ var p=byId(S.data.profiles,pid); return p?(p.trigrama||'—'):'—'; }).join(' / ') || '—';
+        }
         doc.setFont('helvetica','bold'); doc.text(r.label, x0+4, yy);
-        doc.setFont('helvetica','normal'); doc.text(tris, x0+90, yy);
+        doc.setFont('helvetica','normal'); doc.text(String(display), x0+90, yy);
         yy += 15;
       });
       return yy;
@@ -1734,10 +1777,16 @@
     y += 12;
     doc.setDrawColor(200); doc.line(36, y-4, W-36, y-4);
     doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
+    var tableCrewCfgPdf = ESCALA_TABLE_CREW[modelKeyFromName_(data.modelName)] || ESCALA_TABLE_CREW['SC-105'];
     (data.rows||[]).forEach(function(row){
       if(y > H-100){ doc.addPage('a4','landscape'); y = 48; }
       ESCALA_TABLE_COLS.forEach(function(c){
-        var val = row[c.key]||'';
+        var val;
+        if(tableCrewCfgPdf[c.key]){
+          val = (row[c.key]||[]).map(function(pid){ var p=byId(S.data.profiles,pid); return p?(p.trigrama||'—'):'—'; }).join('/');
+        } else {
+          val = row[c.key]||'';
+        }
         var lines = doc.splitTextToSize(val, (wFrac[c.key]*tblW)-6);
         doc.text(lines[0]||'', colX[c.key]+2, y);
       });
