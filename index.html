@@ -1538,17 +1538,20 @@
     'SC-105': { pilotos:{funcao:'PLT', slots:2}, mecanicos:{funcao:'MC', slots:2}, oe:{funcao:'OE-3', slots:2}, os:{funcao:'OS', slots:4} },
     'H-60L': { pilotos:{funcao:'PLT', slots:2}, mecanicos:{funcao:'MC', slots:2}, oe:{funcao:'OE-5', slots:2}, os:{funcao:'HSAR', slots:4} }
   };
-  function profileIndisponivelNaData_(profileId, dateIso){
-    if(!profileId || !dateIso) return false;
+  function profileIndisponivelNaData_(profile, dateIso){
+    if(!profile || !dateIso) return false;
+    var tri = (profile.trigrama||'').trim().toUpperCase();
     return S.data.unavail.some(function(u){
-      return u.profileId===profileId && u.start && dateIso>=u.start && dateIso<=(u.end||u.start);
+      if(!u.start) return false;
+      var matches = (u.profileId===profile.id) || (tri && String(u.trig||'').trim().toUpperCase()===tri);
+      return matches && dateIso>=u.start && dateIso<=(u.end||u.start);
     });
   }
   function funcaoOptionsHtml_(funcao, modelId, selectedId, dateIso){
     var opts = S.data.profiles.filter(function(p){ return profileHasFuncaoOnModel_(p, funcao, modelId); })
       .sort(function(a,b){ return (a.trigrama||'').localeCompare(b.trigrama||''); });
     return '<option value="">—</option>' + opts.map(function(p){
-      var indisp = profileIndisponivelNaData_(p.id, dateIso);
+      var indisp = profileIndisponivelNaData_(p, dateIso);
       var style = indisp ? ' style="color:#e5484d; font-weight:600;"' : '';
       var sel = selectedId===p.id ? ' selected' : '';
       return '<option value="'+p.id+'"'+sel+style+'>'+esc(p.trigrama||'—')+(indisp?' (indisponível)':'')+'</option>';
