@@ -1778,8 +1778,8 @@
     ESCALA_TABLE_COLS.forEach(function(c){ colX[c.key] = cx; cx += wFrac[c.key]*tblW; });
     doc.setFont('helvetica','bold'); doc.setFontSize(8);
     ESCALA_TABLE_COLS.forEach(function(c){ doc.text(c.label, colX[c.key]+2, y); });
-    y += 12;
-    doc.setDrawColor(200); doc.line(36, y-4, W-36, y-4);
+    doc.setDrawColor(120); doc.setLineWidth(0.8); doc.line(36, y+4, W-36, y+4); doc.setLineWidth(0.5);
+    y += 20;
     doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
     var tableCrewCfgPdf = ESCALA_TABLE_CREW[modelKeyFromName_(data.modelName)] || ESCALA_TABLE_CREW['SC-105'];
     (data.rows||[]).forEach(function(row){
@@ -1794,7 +1794,8 @@
         var lines = doc.splitTextToSize(val, (wFrac[c.key]*tblW)-6);
         doc.text(lines[0]||'', colX[c.key]+2, y);
       });
-      y += 14;
+      doc.setDrawColor(220); doc.line(36, y+5, W-36, y+5);
+      y += 18;
     });
 
     y += 16;
