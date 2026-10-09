@@ -1818,9 +1818,17 @@
     doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.text(opr.nome, W/2, y, {align:'center'}); y += 13;
     doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.text(opr.cargo, W/2, y, {align:'center'});
 
+    var MES_ = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
+    var dp = String(data.date||'').split('-');
+    var dataTxt = dp.length===3 ? (dp[2]+MES_[parseInt(dp[1],10)-1]+dp[0].slice(2)) : String(data.date||'');
+    var mk = modelKeyFromName_(data.modelName);
+    var modTxt = mk==='H-60L' ? 'H60L' : (mk || String(data.modelName||'').replace(/[^a-zA-Z0-9-]/g,''));
+    var filename = 'EV '+modTxt+' '+dataTxt+'.pdf';
     var blob = doc.output('blob');
-    var filename = 'Escala-'+data.modelName.replace(/[^a-zA-Z0-9-]/g,'')+'-'+data.date+'.pdf';
-    var url = URL.createObjectURL(blob); window.open(url, '_blank');
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a'); a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 4000);
   }
 
   function renderEsforco(main){
