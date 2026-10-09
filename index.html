@@ -1649,11 +1649,6 @@
       + '<textarea id="escala-obs" rows="4" style="width:100%;" placeholder="Ex.: horários de briefing, retirada de faltas, etc.">'+esc(existing.observacoes||'')+'</textarea>'
       + '</div>'
 
-      + '<div class="panel"><h3>Responsável</h3>'
-      + '<div class="grid2">'
-      + '<div class="field"><label>Nome</label><input id="escala-resp-nome" value="'+esc(existing.responsavelNome||'')+'" placeholder="Ex.: MAJ AV BARROS"></div>'
-      + '<div class="field"><label>Cargo</label><input id="escala-resp-cargo" value="'+esc(existing.responsavelCargo||'Ch. da SOP')+'"></div>'
-      + '</div></div>'
 
       + '<button class="btn btn-amber" id="escala-save">Salvar escala</button> '
       + '<button class="btn btn-sm" id="escala-pdf">Gerar PDF</button>';
@@ -1715,7 +1710,7 @@
         modelId: model.id, modelName: model.name, date: S.escalaDate,
         alertaEntra: alertaEntra, alertaSai: alertaSai, anvAlerta: document.getElementById('escala-anv-alerta').value.trim(),
         rows: rows, observacoes: document.getElementById('escala-obs').value,
-        responsavelNome: document.getElementById('escala-resp-nome').value.trim(), responsavelCargo: document.getElementById('escala-resp-cargo').value.trim()
+        responsavelNome: '', responsavelCargo: ''
       };
     }
 
@@ -1783,7 +1778,7 @@
     doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
     var tableCrewCfgPdf = ESCALA_TABLE_CREW[modelKeyFromName_(data.modelName)] || ESCALA_TABLE_CREW['SC-105'];
     (data.rows||[]).forEach(function(row){
-      if(y > H-100){ doc.addPage('a4','landscape'); y = 48; }
+      var cells = {}, maxL = 1;
       ESCALA_TABLE_COLS.forEach(function(c){
         var val;
         if(tableCrewCfgPdf[c.key]){
@@ -1791,11 +1786,18 @@
         } else {
           val = row[c.key]||'';
         }
-        var lines = doc.splitTextToSize(val, (wFrac[c.key]*tblW)-6);
-        doc.text(lines[0]||'', colX[c.key]+2, y);
+        var ls = doc.splitTextToSize(String(val), (wFrac[c.key]*tblW)-6);
+        cells[c.key] = ls; if(ls.length > maxL) maxL = ls.length;
       });
-      doc.setDrawColor(220); doc.line(36, y+5, W-36, y+5);
-      y += 18;
+      var rowH = maxL*10 + 8;
+      if(y + rowH > H-100){ doc.addPage('a4','landscape'); y = 48; }
+      doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
+      ESCALA_TABLE_COLS.forEach(function(c){
+        cells[c.key].forEach(function(l, i){ doc.text(l, colX[c.key]+2, y + i*10); });
+      });
+      var lineY = y + (maxL-1)*10 + 5;
+      doc.setDrawColor(220); doc.line(36, lineY, W-36, lineY);
+      y = lineY + 13;
     });
 
     y += 16;
@@ -1804,10 +1806,12 @@
     var obsLines = doc.splitTextToSize(data.observacoes||'—', W-72);
     obsLines.forEach(function(l){ if(y>H-60){doc.addPage('a4','landscape'); y=48;} doc.text(l, 36, y); y+=13; });
 
+    var oprP = S.data.profiles.find(function(p){ return profileHasFuncaoAdmin_(p, 'OPR'); });
+    var opr = { nome: oprP ? ((oprP.posto?oprP.posto+' ':'')+(oprP.nomeGuerra||oprP.name)).toUpperCase() : '—', cargo: 'OPR' };
     y = H - 70;
     doc.setDrawColor(150); doc.line(W/2-90, y, W/2+90, y); y += 14;
-    doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.text(data.responsavelNome||'—', W/2, y, {align:'center'}); y += 13;
-    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.text(data.responsavelCargo||'—', W/2, y, {align:'center'});
+    doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.text(opr.nome, W/2, y, {align:'center'}); y += 13;
+    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.text(opr.cargo, W/2, y, {align:'center'});
 
     var blob = doc.output('blob');
     var filename = 'Escala-'+data.modelName.replace(/[^a-zA-Z0-9-]/g,'')+'-'+data.date+'.pdf';
