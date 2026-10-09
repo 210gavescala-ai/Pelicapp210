@@ -1768,7 +1768,7 @@
     doc.setDrawColor(180); doc.line(36, y, W-36, y); y += 18;
 
     var tblLeft = 36, tblRight = W-36, tblW = tblRight-tblLeft;
-    var wFrac = { dep:0.055, codChamada:0.08, anv:0.06, pilotos:0.13, mecanicos:0.13, oe:0.1, os:0.12, codigoOi:0.07, tempo:0.06, area:0.09, obs:0.105 };
+    var wFrac = { dep:0.055, codChamada:0.08, anv:0.06, pilotos:0.13, mecanicos:0.13, oe:0.1, os:0.15, codigoOi:0.07, tempo:0.06, area:0.09, obs:0.075 };
     var colX = {}, cx = tblLeft;
     ESCALA_TABLE_COLS.forEach(function(c){ colX[c.key] = cx; cx += wFrac[c.key]*tblW; });
     doc.setFont('helvetica','bold'); doc.setFontSize(8);
@@ -1778,21 +1778,26 @@
     doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
     var tableCrewCfgPdf = ESCALA_TABLE_CREW[modelKeyFromName_(data.modelName)] || ESCALA_TABLE_CREW['SC-105'];
     (data.rows||[]).forEach(function(row){
-      var cells = {}, maxL = 1;
+      var cells = {}, fonts = {}, maxL = 1;
       ESCALA_TABLE_COLS.forEach(function(c){
-        var val;
+        var colW = (wFrac[c.key]*tblW)-4, ls, fs = 8.5;
         if(tableCrewCfgPdf[c.key]){
-          val = (row[c.key]||[]).map(function(pid){ var p=byId(S.data.profiles,pid); return p?(p.trigrama||'—'):'—'; }).join('/');
+          var tris = (row[c.key]||[]).map(function(pid){ var p=byId(S.data.profiles,pid); return p?(p.trigrama||'—'):'—'; });
+          ls = [];
+          for(var k=0;k<tris.length;k+=4) ls.push(tris.slice(k,k+4).join('/'));
+          doc.setFont('helvetica','normal');
+          ls.forEach(function(l){ doc.setFontSize(fs); while(fs>5 && doc.getTextWidth(l) > colW){ fs -= 0.25; doc.setFontSize(fs); } });
         } else {
-          val = row[c.key]||'';
+          doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
+          ls = doc.splitTextToSize(String(row[c.key]||''), colW-2);
         }
-        var ls = doc.splitTextToSize(String(val), (wFrac[c.key]*tblW)-6);
-        cells[c.key] = ls; if(ls.length > maxL) maxL = ls.length;
+        cells[c.key] = ls; fonts[c.key] = fs; if(ls.length > maxL) maxL = ls.length;
       });
       var rowH = maxL*10 + 8;
       if(y + rowH > H-100){ doc.addPage('a4','landscape'); y = 48; }
-      doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
+      doc.setFont('helvetica','normal');
       ESCALA_TABLE_COLS.forEach(function(c){
+        doc.setFontSize(fonts[c.key]);
         cells[c.key].forEach(function(l, i){ doc.text(l, colX[c.key]+2, y + i*10); });
       });
       var lineY = y + (maxL-1)*10 + 5;
@@ -1807,7 +1812,7 @@
     obsLines.forEach(function(l){ if(y>H-60){doc.addPage('a4','landscape'); y=48;} doc.text(l, 36, y); y+=13; });
 
     var oprP = S.data.profiles.find(function(p){ return profileHasFuncaoAdmin_(p, 'OPR'); });
-    var opr = { nome: oprP ? ((oprP.posto?oprP.posto+' ':'')+(oprP.nomeGuerra||oprP.name)).toUpperCase() : '—', cargo: 'OPR' };
+    var opr = { nome: oprP ? ((oprP.posto?oprP.posto+' ':'')+(oprP.nomeGuerra||oprP.name)).toUpperCase() : '—', cargo: 'Chefe da SOP do 2º/10º GAV' };
     y = H - 70;
     doc.setDrawColor(150); doc.line(W/2-90, y, W/2+90, y); y += 14;
     doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.text(opr.nome, W/2, y, {align:'center'}); y += 13;
