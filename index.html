@@ -66,6 +66,12 @@
   .empty-note{color:var(--text-muted); font-size:13.5px; padding:14px 0;}
 
   /* ---------- Shell ---------- */
+  .me-bar{display:flex; gap:10px; flex-wrap:wrap; padding:8px 16px; background:var(--surface); border-bottom:1px solid var(--border);}
+  .me-chip{display:flex; align-items:baseline; gap:8px; padding:4px 10px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface-raised);}
+  .me-chip .l{font-size:11px; color:var(--text-muted); font-family:var(--font-head);}
+  .me-chip .v{font-size:14px; font-weight:600; color:var(--amber);}
+  .me-chip .v.bad{color:var(--danger);}
+  .me-chip .v.warn{color:var(--amber);}
   .shell{display:flex; flex:1; min-height:100vh;}
   .sidebar{width:230px; flex-shrink:0; background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; padding:18px 0;}
   .sidebar-mark{padding:0 18px 18px; border-bottom:1px solid var(--border); margin-bottom:10px;}
@@ -180,7 +186,7 @@
     ready: false,
     profileId: localStorage.getItem('ep_profile_id') || null,
     view: 'registro',
-    data: { profiles: [], models: [], aircraft: [], flights: [], unavail: [], orders: [], effortBudgets: [], modelEfforts: [], customAirports: [], orderReports: [], soldos: [], escalasVoo: [] },
+    data: { profiles: [], models: [], aircraft: [], flights: [], unavail: [], orders: [], effortBudgets: [], modelEfforts: [], customAirports: [], orderReports: [], soldos: [], escalasVoo: [], dadosPessoais: [] },
     fx: { modelId: null, aircraftId: null }, // registro de voo wizard
     adminTab: 'perfis',
     esforcoTab: 'alocacao',
@@ -723,6 +729,56 @@
     });
   }
 
+  function meStatsHtml_(me){
+    var tri = String(me.trigrama||'').trim().toUpperCase();
+    if(!tri) return '';
+    var slots = {};
+    S.data.models.forEach(function(m){
+      var mp = slotToFuncaoMap_(flightFormConfig(m.name), modelKeyFromName_(m.name));
+      Object.keys(mp).forEach(function(k){ slots[k] = 1; });
+    });
+    var year = String(new Date().getFullYear()), min = 0, last = '';
+    S.data.flights.forEach(function(f){
+      var mine = Object.keys(slots).some(function(k){ return !isEmptyTri_(f[k]) && String(f[k]).trim().toUpperCase()===tri; });
+      if(!mine) return;
+      var d = f.date||'';
+      if(d.slice(0,4)===year) min += (f.durationMin||0);
+      if(d > last) last = d;
+    });
+    var dias = '—';
+    if(last){
+      var dt = new Date(last+'T00:00:00');
+      if(!isNaN(dt.getTime())) dias = String(Math.max(0, Math.floor((Date.now()-dt.getTime())/86400000)));
+    }
+    function chip(l, v, cls){ return '<div class="me-chip"><span class="l">'+l+'</span><span class="v mono'+(cls?' '+cls:'')+'">'+esc(v)+'</span></div>'; }
+    var dp = (byId(S.data.dadosPessoais, tri)) || {};
+    function brToDate(br){ var m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(br||'')); return m ? new Date(+m[3], +m[2]-1, +m[1]) : null; }
+    function dateChip(l, br){
+      if(!br) return chip(l, '—');
+      var d = brToDate(br);
+      return chip(l, br, (d && d.getTime() < Date.now()) ? 'bad' : '');
+    }
+    var comiss = '—';
+    if(dp.diasComiss !== undefined && dp.diasComiss !== ''){ comiss = dp.diasComiss+' d'+(dp.statusComiss ? ' · '+dp.statusComiss : ''); }
+    else if(dp.statusComiss){ comiss = dp.statusComiss; }
+    var insp = '—', inspCls = '';
+    if(typeof dp.inspSaude === 'number'){
+      if(dp.inspSaude < 0){ insp = 'vencida há '+Math.abs(dp.inspSaude)+' d'; inspCls = 'bad'; }
+      else { insp = dp.inspSaude+' d'; if(dp.inspSaude < 60) inspCls = 'warn'; }
+    } else if(dp.inspSaude){ insp = dp.inspSaude; }
+    var tdie = dp.tdie ? dp.tdie+(dp.nivelTdie ? ' · '+dp.nivelTdie : '') : (dp.nivelTdie || '—');
+    var tdieD = brToDate(dp.tdie);
+    return '<div class="me-bar">'
+      + chip('Horas em '+year, fmtDuration(min))
+      + chip('Dias sem voar', dias)
+      + chip('Comissionamento', comiss)
+      + dateChip('PTAI', dp.ptai)
+      + chip('TDIE', tdie, (tdieD && tdieD.getTime() < Date.now()) ? 'bad' : '')
+      + dateChip('Passaporte', dp.passaporte)
+      + chip('Insp. saúde', insp, inspCls)
+      + '</div>';
+  }
+
   /* ---------------- Shell + nav ---------------- */
   function renderShell(app){
     var me = byId(S.data.profiles, S.profileId);
@@ -741,6 +797,7 @@
       + '<button class="switch-link" id="switch-profile-m">trocar perfil</button>'
       + '</div></details>'
       + '</div>'
+      + meStatsHtml_(me)
       + '<div class="shell">'
       + '<nav class="sidebar">'
       + '<div class="sidebar-mark"><div class="tag">ESQUADRÃO PELICANO</div><div class="sub">PAINEL OPERACIONAL</div></div>'
@@ -1638,7 +1695,7 @@
       + '<div class="panel"><h3>Alerta SAR</h3>'
       + '<div class="grid2">'
       + '<div><h4 style="font-family:var(--font-head); font-size:13px; margin:0 0 10px; color:var(--amber);">Alerta que entra</h4>'+escalaAlertaBlockHtml_('entra', alertaRows, existing.alertaEntra, model.id, S.escalaDate)+'</div>'
-      + '<div><h4 style="font-family:var(--font-head); font-size:13px; margin:0 0 10px; color:var(--amber);">Alerta que sai</h4>'+escalaAlertaBlockHtml_('sai', alertaRows, existing.alertaSai, model.id, S.escalaDate)+'</div>'
+      + '<div><h4 style="font-family:var(--font-head); font-size:13px; margin:0 0 10px; color:var(--amber);">Alerta que sai <button type="button" class="btn btn-sm" id="escala-import-prev" style="margin-left:8px; font-weight:400;">Importar dia anterior</button></h4>'+escalaAlertaBlockHtml_('sai', alertaRows, existing.alertaSai, model.id, S.escalaDate)+'</div>'
       + '</div>'
       + '<div class="field" style="max-width:260px; margin-top:6px;"><label>ANV de alerta</label><input id="escala-anv-alerta" value="'+esc(existing.anvAlerta||'')+'" placeholder="Ex.: FAB 6551"></div>'
       + '</div>'
@@ -1662,6 +1719,21 @@
       b.addEventListener('click', function(){ S.escalaModelId = b.getAttribute('data-escmodel'); render(); });
     });
     document.getElementById('escala-date').addEventListener('change', function(e){ S.escalaDate = e.target.value; render(); });
+
+    document.getElementById('escala-import-prev').addEventListener('click', function(){
+      var d = new Date(S.escalaDate+'T00:00:00Z'); d.setUTCDate(d.getUTCDate()-1);
+      var prevIso = d.toISOString().slice(0,10);
+      var prev = byId(S.data.escalasVoo, escalaDocId_(modelKey, prevIso));
+      if(!prev || !prev.alertaEntra){ alert('Não há escala salva em '+prevIso.split('-').reverse().join('/')+' para '+model.name+'.'); return; }
+      var ent = prev.alertaEntra;
+      main.querySelectorAll('.escala-alerta-select[data-side="sai"]').forEach(function(sel){
+        var arr = ent[sel.getAttribute('data-key')] || [];
+        sel.value = arr[parseInt(sel.getAttribute('data-idx'),10)] || '';
+      });
+      main.querySelectorAll('.escala-alerta-free[data-side="sai"]').forEach(function(inp){
+        inp.value = ent[inp.getAttribute('data-key')] || '';
+      });
+    });
 
     var tableWrap = document.getElementById('escala-table-wrap');
     function wireRowDelete(row){
@@ -2930,7 +3002,7 @@
     var cols = [
       ['profiles','profiles'], ['aircraftModels','models'], ['aircraft','aircraft'],
       ['flights','flights'], ['unavailability','unavail'], ['missionOrders','orders'],
-      ['effortBudgets','effortBudgets'], ['modelEfforts','modelEfforts'], ['customAirports','customAirports'], ['orderReports','orderReports'], ['soldos','soldos'], ['escalasVoo','escalasVoo']
+      ['effortBudgets','effortBudgets'], ['modelEfforts','modelEfforts'], ['customAirports','customAirports'], ['orderReports','orderReports'], ['soldos','soldos'], ['escalasVoo','escalasVoo'], ['dadosPessoais','dadosPessoais']
     ];
     S._lastJson = S._lastJson || {};
     S._loadedCollections = S._loadedCollections || {};
