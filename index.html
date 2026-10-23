@@ -759,12 +759,13 @@
       return chip(l, br, (d && d.getTime() < Date.now()) ? 'bad' : '');
     }
     var comiss = '—';
-    if(dp.diasComiss !== undefined && dp.diasComiss !== ''){ comiss = dp.diasComiss+' d'+(dp.statusComiss ? ' · '+dp.statusComiss : ''); }
+    if(dp.diasComiss !== undefined && dp.diasComiss !== ''){ comiss = (typeof dp.diasComiss==='number' ? Math.round(dp.diasComiss) : dp.diasComiss)+' d'+(dp.statusComiss ? ' · '+dp.statusComiss : ''); }
     else if(dp.statusComiss){ comiss = dp.statusComiss; }
     var insp = '—', inspCls = '';
     if(typeof dp.inspSaude === 'number'){
-      if(dp.inspSaude < 0){ insp = 'vencida há '+Math.abs(dp.inspSaude)+' d'; inspCls = 'bad'; }
-      else { insp = dp.inspSaude+' d'; if(dp.inspSaude < 60) inspCls = 'warn'; }
+      var inspN = Math.round(dp.inspSaude);
+      if(inspN < 0){ insp = 'vencida há '+Math.abs(inspN)+' d'; inspCls = 'bad'; }
+      else { insp = inspN+' d'; if(inspN < 60) inspCls = 'warn'; }
     } else if(dp.inspSaude){ insp = dp.inspSaude; }
     var tdie = dp.tdie ? dp.tdie+(dp.nivelTdie ? ' · '+dp.nivelTdie : '') : (dp.nivelTdie || '—');
     var tdieD = brToDate(dp.tdie);
